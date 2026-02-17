@@ -36,16 +36,30 @@ def cosine_similarity(a, b):
 @app.post("/similarity")
 def get_similarity(request: SimilarityRequest):
 
-    query_embedding = fake_embedding(request.query)
+    # Create embedding for query
+    query_response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=request.query
+    )
+    query_embedding = query_response.data[0].embedding
+
+    # Create embeddings for all documents
+    docs_response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=request.docs
+    )
 
     similarities = []
 
-    for doc in request.docs:
-        doc_embedding = fake_embedding(doc)
+    for i, doc_obj in enumerate(docs_response.data):
+        doc_embedding = doc_obj.embedding
         sim = cosine_similarity(query_embedding, doc_embedding)
-        similarities.append((sim, doc))
+        similarities.append((i, sim))  # store index + similarity
 
-    similarities.sort(reverse=True, key=lambda x: x[0])
-    top_matches = [doc for _, doc in similarities[:3]]
+    # Sort by similarity (highest first)
+    similarities.sort(key=lambda x: x[1], reverse=True)
+
+    # Extract top 3 indexes
+    top_matches = [idx for idx, _ in similarities[:3]]
 
     return {"matches": top_matches}
